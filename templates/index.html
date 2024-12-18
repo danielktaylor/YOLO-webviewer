@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YOLO Object Detection</title>
+    <style>
+    body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        margin: 0;
+        padding: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        background: linear-gradient(135deg, #74ebd5, #acb6e5);
+        color: #333;
+    }
+    #drop-zone {
+        width: 80%;
+        max-width: 600px;
+        height: 250px;
+        border: 3px dashed #fff;
+        border-radius: 15px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        color: #fff;
+        background-color: rgba(255, 255, 255, 0.2);
+        cursor: pointer;
+        transition: background-color 0.3s, color 0.3s;
+    }
+    #drop-zone.dragover {
+        background-color: rgba(255, 255, 255, 0.4);
+        color: #000;
+        border-color: #000;
+    }
+    #drop-zone h2 {
+        font-size: 1.5em;
+        margin: 0;
+    }
+    #output {
+        margin-top: 30px;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 15px;
+        width: 90%;
+        max-width: 1000px;
+    }
+    .output-item {
+        background-color: #fff;
+        padding: 10px;
+        border-radius: 10px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    .output-item img {
+        width: 100%;
+        border-radius: 10px;
+    }
+    </style>
+</head>
+<body>
+    <div id="drop-zone">Drag and drop an image or video file here, or click to upload</div>
+    <input type="file" id="file-input" style="display: none;" />
+    <div id="output"></div>
+
+    <script>
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const output = document.getElementById('output');
+
+        dropZone.addEventListener('click', () => fileInput.click());
+
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('dragover');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFiles(files);
+            }
+        });
+
+        fileInput.addEventListener('change', () => {
+            if (fileInput.files.length > 0) {
+                handleFiles(fileInput.files);
+            }
+        });
+
+        function handleFiles(files) {
+            const file = files[0];
+            const formData = new FormData();
+            formData.append('file', file);
+
+            fetch('/upload', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.output) {
+                    displayOutput(data.output);
+                } else {
+                    alert('Error processing the file.');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+        }
+
+        function displayOutput(outputFiles) {
+            output.innerHTML = '';
+            outputFiles.forEach(file => {
+                const img = document.createElement('img');
+                img.src = `/output/${file.split('/').pop()}`;
+                const div = document.createElement('div');
+                div.classList.add('output-item');
+                div.appendChild(img);
+                output.appendChild(div);
+            });
+        }
+    </script>
+</body>
+</html>
