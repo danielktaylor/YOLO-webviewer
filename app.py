@@ -34,7 +34,7 @@ def process_image(image_path):
             color = (0, 255, 0) if class_name == "no_prey" else (0, 0, 255) if class_name == "prey" else (255, 255, 255)
             cv2.rectangle(image, (x1, y1), (x2, y2), color, 2)
             label = f"{class_name} {conf:.2f}"
-            cv2.putText(image, label, (5, 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+            cv2.putText(image, label, (max(5,x1), max(15,y1 - 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
     output_path = os.path.join(app.config['OUTPUT_FOLDER'], os.path.basename(image_path))
     cv2.imwrite(output_path, image)
     return output_path
@@ -65,7 +65,7 @@ def process_video(video_path):
                     color = (0, 255, 0) if class_name == "no_prey" else (0, 0, 255) if class_name == "prey" else (255, 255, 255)
                     cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
                     label = f"{class_name} {conf:.2f}"
-                    cv2.putText(frame, label, (5, 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+                    cv2.putText(frame, label, (max(5,x1), max(15,y1 - 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
             output_frame_path = os.path.join(app.config['OUTPUT_FOLDER'], f'frame_{frame_count}.jpg')
             cv2.imwrite(output_frame_path, frame)
             output_frames.append(output_frame_path)
