@@ -31,7 +31,7 @@ def process_image(image_path):
             class_name = yolo_model.names[int(cls)]  # Get the class name
             print(f"Class detected: {class_name}, Confidence: {conf}")  # Log class and confidence
             x1, y1, x2, y2 = map(int, box[:4])
-            color = (0, 255, 0) if class_name == "no_prey" else (0, 0, 255) if class_name == "prey" else (255, 255, 255)
+            color = (0, 255, 0)
             cv2.rectangle(image, (x1, y1), (x2, y2), color, 2)
             label = f"{class_name} {conf:.2f}"
             cv2.putText(image, label, (max(5,x1), max(15,y1 - 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
@@ -62,7 +62,7 @@ def process_video(video_path):
                     class_name = yolo_model.names[int(cls)]  # Get the class name
                     print(f"Class detected: {class_name}, Confidence: {conf}")  # Log class and confidence
                     x1, y1, x2, y2 = map(int, box[:4])
-                    color = (0, 255, 0) if class_name == "no_prey" else (0, 0, 255) if class_name == "prey" else (255, 255, 255)
+                    color = (0, 255, 0)
                     cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
                     label = f"{class_name} {conf:.2f}"
                     cv2.putText(frame, label, (max(5,x1), max(15,y1 - 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)

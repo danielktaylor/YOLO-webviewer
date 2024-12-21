@@ -1,5 +1,5 @@
 .DS_Store
 uploads/
 output/
-model.pt
+*.pt
 env/
