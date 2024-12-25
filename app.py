@@ -14,7 +14,11 @@ app.config['ALLOWED_EXTENSIONS'] = {'png', 'jpg', 'jpeg', 'mp4'}
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 os.makedirs(app.config['OUTPUT_FOLDER'], exist_ok=True)
 
-# Load YOLO models
+RED = (0, 0, 255)
+GREEN = (0, 255, 0)
+WHITE = (255, 255, 255)
+
+# Load trained models
 detect_model = YOLO('detect.pt')
 classify_model = YOLO('classify.pt')
 
@@ -41,44 +45,75 @@ def pad_image_to_square(image):
     new_image = cv2.copyMakeBorder(image, top, bottom, left, right, cv2.BORDER_CONSTANT, value=color)
     return new_image
 
-def draw_boxes(result, image):
-    boxes = result.boxes.xyxy.numpy()
-    classes = result.boxes.cls.numpy()
-    confidences = result.boxes.conf.numpy()
-    for box, cls, conf in zip(boxes, classes, confidences):
-        class_name = detect_model.names[int(cls)]  # Get the class name
-        print(f"Class detected: {class_name}, Confidence: {conf}")  # Log class and confidence
-        x1, y1, x2, y2 = map(int, box[:4])
-        color = (0, 255, 0)
-        cv2.rectangle(image, (x1, y1), (x2, y2), color, 2)
-        label = f"{class_name} {conf:.2f}"
-        cv2.putText(image, label, (max(5,x1), max(15,y1 - 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+def draw_box(image, label, confidence, color, x1, y1, x2, y2):
+    cv2.rectangle(image, (x1, y1), (x2, y2), color, 2)
+    text = f"{label} {confidence:.2f}"
+    cv2.putText(image, text, (max(5,x1), max(15,y1 - 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
     return image
+
+def run_models(image, classify_only=False):
+    '''
+    Process a single frame of an image or video file. 
+    If classify_only is True, only classifictiona is done. Otherwise object detection is performed, then classification on each object.
+    Returns a list of tuples, one per object: (detection_label, detection_confidence, x1, y1, x2, y2, predicted_class_label, class_confidence)
+    '''
+    if classify_only:
+        image_sq = pad_image_to_square(image)
+        classification = classify_model.predict(image_sq)
+        label = str(classification[0].names[classification[0].probs.top1])
+        confidence = float(classification[0].probs.top1conf)
+        return [(None, None, None, None, None, label, confidence)]
+
+    results = detect_model(image) # TODO do I need to pad this?
+
+    all_objects = []
+    for result in results:
+        for object in result:
+            if object.boxes.xyxy.numel() != 0:  # Was anything detected?
+                int_tensor = object.boxes.xyxy.int()
+                int_list = int_tensor.tolist()[0]
+                x1, y1, x2, y2 = int_list
+
+                detection_confidence = float(object.boxes.conf)
+                detection_label = object.names[int(object.boxes.cls)]
+                image_cropped = image[int(y1):int(y2), int(x1):int(x2)]
+
+                # TODO save this and make sure it crops correctly
+                # TODO Is it necessary to pad? (Here and above)
+                image_cropped_sq = pad_image_to_square(image_cropped)
+
+                classification = classify_model.predict(image_cropped_sq)
+                cls_label = str(classification[0].names[classification[0].probs.top1])
+                cls_confidence = float(classification[0].probs.top1conf)
+
+                all_objects.append((detection_label, detection_confidence, x1, y1, x2, y2, cls_label, cls_confidence))
+    return all_objects
+
+def process_frame(image, objects):
+    best_classification = None
+    best_confidence = 0.0
+
+    for object in objects:
+        detection_label, detection_confidence, x1, y1, x2, y2, cls_label, cls_confidence = object
+        color = GREEN if cls_label == 'no_prey' else RED if cls_label == 'prey' else WHITE
+        image = draw_box(image, detection_label, detection_confidence, color, x1, y1, x2, y2)
+
+        if detection_confidence > best_confidence:
+            best_classification = cls_label
+            best_confidence = cls_confidence
+    
+    return image, best_classification, best_confidence
 
 def process_image_file(full_image_path):
     image = cv2.imread(full_image_path)
-    results = detect_model(image)
-    for result in results:
-        class_label = None
-        class_conf = None
+    objects = run_models(image)
 
-        if result and result[0].boxes.xyxy.numel() != 0:  # Is a cat detected?
-            int_tensor = result[0].boxes.xyxy.int()  # Cast to integers
+    image, classification, confidence = process_frame(image, objects)
 
-            int_list = int_tensor.tolist()[0]  # Convert to list and access the inner list
-            x1, y1, x2, y2 = int_list  # Unpack into four integers
-            frame_cropped = image[int(y1):int(y2), int(x1):int(x2)]  # TODO save this and make sure this crops correctly
-            frame_cropped_sq = pad_image_to_square(frame_cropped)
-
-            classification = classify_model.predict(frame_cropped_sq)
-            class_label = str(classification[0].names[classification[0].probs.top1])
-            class_conf = float(classification[0].probs.top1conf)
-
-        new_filename = generate_random_str() + os.path.splitext(full_image_path)[1]
-        output_path = os.path.join(app.config['OUTPUT_FOLDER'], new_filename)
-        image = draw_boxes(result, image)
-        cv2.imwrite(output_path, image)
-        return jsonify({'output': [{'file': new_filename, 'label': class_label, 'confidence': class_conf}]})
+    new_filename = generate_random_str() + os.path.splitext(full_image_path)[1]
+    output_path = os.path.join(app.config['OUTPUT_FOLDER'], new_filename)
+    cv2.imwrite(output_path, image)
+    return jsonify({'output': [{'file': new_filename, 'label': classification, 'confidence': confidence}]})
 
 def process_video_file(video_path):
     cap = cv2.VideoCapture(video_path)
@@ -94,28 +129,12 @@ def process_video_file(video_path):
             break
 
         if frame_count % frame_interval == 0:
-            results = detect_model(frame)
-            
-            class_label = None
-            class_conf = None
-
-            if results[0].boxes.xyxy.numel() != 0: # Is a cat detected?
-                int_tensor = results[0].boxes.xyxy.int()  # Cast to integers
-
-                int_list = int_tensor.tolist()[0]  # Convert to list and access the inner list
-                x1, y1, x2, y2 = int_list  # Unpack into four integers
-                frame_cropped = frame[int(y1):int(y2), int(x1):int(x2)] # TODO save this and make sure this crops correctly
-                frame_cropped_sq = pad_image_to_square(frame_cropped)
-
-                classification = classify_model.predict(frame_cropped_sq)
-                class_label = str(classification[0].names[classification[0].probs.top1])
-                class_conf = float(classification[0].probs.top1conf)
-
-            output_filename = os.path.join(app.config['OUTPUT_FOLDER'], f'frame_{frame_count}.jpg')
-            for result in results:
-                frame = draw_boxes(result, frame)
-            cv2.imwrite(output_filename, frame)
-            output_frames.append({'file': f'frame_{frame_count}.jpg', 'label': class_label, 'confidence': class_conf})
+            objects = run_models(frame)
+            image, classification, confidence = process_frame(frame, objects)
+            filename = f'frame_{frame_count}.jpg'
+            output_filename = os.path.join(app.config['OUTPUT_FOLDER'], filename)
+            cv2.imwrite(output_filename, image)
+            output_frames.append({'file': filename, 'label': classification, 'confidence': confidence})
 
         frame_count += 1
 
