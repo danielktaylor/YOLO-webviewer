@@ -61,7 +61,7 @@ def run_models(image_sq, classify_only=False):
         classification = classify_model.predict(image_sq)
         label = str(classification[0].names[classification[0].probs.top1])
         confidence = float(classification[0].probs.top1conf)
-        return [(None, None, None, None, None, label, confidence)]
+        return [(None, None, None, None, None, None, label, confidence)]
 
     results = detect_model(image_sq)
 
@@ -91,20 +91,23 @@ def process_frame(image, objects):
 
     for object in objects:
         detection_label, detection_confidence, x1, y1, x2, y2, cls_label, cls_confidence = object
-        color = GREEN if cls_label == 'no_prey' else RED if cls_label == 'prey' else WHITE
-        image = draw_box(image, detection_label, detection_confidence, color, x1, y1, x2, y2)
+        if detection_label:
+            color = GREEN if cls_label == 'no_prey' else RED if cls_label == 'prey' else WHITE
+            image = draw_box(image, detection_label, detection_confidence, color, x1, y1, x2, y2)
 
-        if detection_confidence > best_confidence:
+            if detection_confidence > best_confidence:
+                best_classification = cls_label
+                best_confidence = cls_confidence
+        else: # Didn't do object detection, only classification
             best_classification = cls_label
             best_confidence = cls_confidence
     
     return image, best_classification, best_confidence
 
-def process_image_file(full_image_path):
+def process_image_file(full_image_path, classify_only):
     image = cv2.imread(full_image_path)
     image = pad_image_to_square(image) # Does make a difference!
-    objects = run_models(image)
-
+    objects = run_models(image, classify_only)
     image, classification, confidence = process_frame(image, objects)
 
     new_filename = generate_random_str() + os.path.splitext(full_image_path)[1]
@@ -112,7 +115,7 @@ def process_image_file(full_image_path):
     cv2.imwrite(output_path, image)
     return jsonify({'output': [{'file': new_filename, 'label': classification, 'confidence': confidence}]})
 
-def process_video_file(video_path):
+def process_video_file(video_path, classify_only):
     cap = cv2.VideoCapture(video_path)
     frame_rate = 0.5  # Process every 0.5 seconds
     output_frames = []
@@ -127,7 +130,7 @@ def process_video_file(video_path):
 
         if frame_count % frame_interval == 0:
             frame = pad_image_to_square(frame) # Does make a difference!
-            objects = run_models(frame)
+            objects = run_models(frame, classify_only)
             image, classification, confidence = process_frame(frame, objects)
             filename = f'frame_{frame_count}.jpg'
             output_filename = os.path.join(app.config['OUTPUT_FOLDER'], filename)
@@ -145,6 +148,7 @@ def upload_file():
         return jsonify({'error': 'No file part'}), 400
 
     file = request.files['file']
+    classify_only = request.form.get('classify_only') == 'true'
 
     if file.filename == '':
         return jsonify({'error': 'No selected file'}), 400
@@ -155,9 +159,9 @@ def upload_file():
         file.save(file_path)
 
         if filename.rsplit('.', 1)[1].lower() in {'jpg', 'jpeg', 'png'}:
-            return process_image_file(file_path), 200
+            return process_image_file(file_path, classify_only), 200
         elif filename.rsplit('.', 1)[1].lower() == 'mp4':
-            return process_video_file(file_path), 200
+            return process_video_file(file_path, classify_only), 200
 
     return jsonify({'error': 'Invalid file type'}), 400
 

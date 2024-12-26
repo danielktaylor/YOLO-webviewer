@@ -32,6 +32,7 @@
         background-color: rgba(255, 255, 255, 0.2);
         cursor: pointer;
         transition: background-color 0.3s, color 0.3s;
+        margin-top: 20px;
     }
     #drop-zone.dragover {
         background-color: rgba(255, 255, 255, 0.4);
@@ -44,6 +45,7 @@
     }
     #output {
         margin-top: 30px;
+        margin-bottom: 20px;
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
         gap: 15px;
@@ -67,11 +69,21 @@
         font-weight: bold;
         color: #333;
     }
+    .model-selection {
+        margin-top: 20px;
+        color: rgb(70, 70, 70);
+    }
     </style>
 </head>
 <body>
     <div id="drop-zone">Drag and drop an image or video file here, or click to upload</div>
     <input type="file" id="file-input" style="display: none;" />
+    <div class="model-selection">
+        <input type="radio" id="detect_classify" name="mode" value="detect_classify" checked>
+        <label for="detect_classify">detect + classify</label>
+        <input type="radio" id="classify_only" name="mode" value="classify_only">
+        <label for="classify_only">classify only</label>
+    </div>
     <div id="output"></div>
 
     <script>
@@ -109,6 +121,9 @@
             const file = files[0];
             const formData = new FormData();
             formData.append('file', file);
+
+            const classifyOnly = document.getElementById('classify_only').checked;
+            formData.append('classify_only', classifyOnly);
 
             fetch('/upload', {
                 method: 'POST',
