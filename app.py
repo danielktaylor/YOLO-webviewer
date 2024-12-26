@@ -51,20 +51,19 @@ def draw_box(image, label, confidence, color, x1, y1, x2, y2):
     cv2.putText(image, text, (max(5,x1), max(15,y1 - 10)), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
     return image
 
-def run_models(image, classify_only=False):
+def run_models(image_sq, classify_only=False):
     '''
     Process a single frame of an image or video file. 
     If classify_only is True, only classifictiona is done. Otherwise object detection is performed, then classification on each object.
     Returns a list of tuples, one per object: (detection_label, detection_confidence, x1, y1, x2, y2, predicted_class_label, class_confidence)
     '''
     if classify_only:
-        image_sq = pad_image_to_square(image)
         classification = classify_model.predict(image_sq)
         label = str(classification[0].names[classification[0].probs.top1])
         confidence = float(classification[0].probs.top1conf)
         return [(None, None, None, None, None, label, confidence)]
 
-    results = detect_model(image) # TODO do I need to pad this?
+    results = detect_model(image_sq)
 
     all_objects = []
     for result in results:
@@ -76,10 +75,7 @@ def run_models(image, classify_only=False):
 
                 detection_confidence = float(object.boxes.conf)
                 detection_label = object.names[int(object.boxes.cls)]
-                image_cropped = image[int(y1):int(y2), int(x1):int(x2)]
-
-                # TODO save this and make sure it crops correctly
-                # TODO Is it necessary to pad? (Here and above)
+                image_cropped = image_sq[int(y1):int(y2), int(x1):int(x2)]
                 image_cropped_sq = pad_image_to_square(image_cropped)
 
                 classification = classify_model.predict(image_cropped_sq)
@@ -106,6 +102,7 @@ def process_frame(image, objects):
 
 def process_image_file(full_image_path):
     image = cv2.imread(full_image_path)
+    image = pad_image_to_square(image) # Does make a difference!
     objects = run_models(image)
 
     image, classification, confidence = process_frame(image, objects)
@@ -129,6 +126,7 @@ def process_video_file(video_path):
             break
 
         if frame_count % frame_interval == 0:
+            frame = pad_image_to_square(frame) # Does make a difference!
             objects = run_models(frame)
             image, classification, confidence = process_frame(frame, objects)
             filename = f'frame_{frame_count}.jpg'
