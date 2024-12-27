@@ -1,6 +1,7 @@
 from flask import Flask, render_template, request, jsonify, send_from_directory
 from werkzeug.utils import secure_filename
 from ultralytics import YOLO
+from PIL import Image
 import secrets
 import string
 import cv2
@@ -149,6 +150,7 @@ def upload_file():
 
     file = request.files['file']
     classify_only = request.form.get('classify_only') == 'true'
+    convert_to_greyscale = request.form.get('convert_to_greyscale') == 'true'
 
     if file.filename == '':
         return jsonify({'error': 'No selected file'}), 400
@@ -159,6 +161,18 @@ def upload_file():
         file.save(file_path)
 
         if filename.rsplit('.', 1)[1].lower() in {'jpg', 'jpeg', 'png'}:
+
+            if convert_to_greyscale:
+                with Image.open(file_path) as img:
+                    img = img.convert("RGB")
+                    pixels = img.load()
+                    for y in range(img.height):
+                        for x in range(img.width):
+                            r, g, b = pixels[x, y]
+                            gray = int(0.299 * r + 0.587 * g + 0.114 * b)  # Standard greyscale formula
+                            pixels[x, y] = (gray, gray, gray)  # Set RGB channels to the same value
+                    img.save(file_path)
+
             return process_image_file(file_path, classify_only), 200
         elif filename.rsplit('.', 1)[1].lower() == 'mp4':
             return process_video_file(file_path, classify_only), 200

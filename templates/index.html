@@ -81,8 +81,14 @@
     <div class="model-selection">
         <input type="radio" id="detect_classify" name="mode" value="detect_classify" checked>
         <label for="detect_classify">detect + classify</label>
+        &nbsp;&nbsp;
         <input type="radio" id="classify_only" name="mode" value="classify_only">
         <label for="classify_only">classify only</label>
+        <br/><br/>
+        <center>
+            <input type="checkbox" id="convert_to_greyscale">
+            <label for="convert_to_greyscale">convert to greyscale</label>
+        </center>
     </div>
     <div id="output"></div>
 
@@ -124,6 +130,9 @@
 
             const classifyOnly = document.getElementById('classify_only').checked;
             formData.append('classify_only', classifyOnly);
+
+            const convertToGreyscale = document.getElementById('convert_to_greyscale').checked;
+            formData.append('convert_to_greyscale', convertToGreyscale);
 
             fetch('/upload', {
                 method: 'POST',
